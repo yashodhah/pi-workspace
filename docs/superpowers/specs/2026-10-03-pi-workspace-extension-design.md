@@ -126,6 +126,63 @@ precedence. The multi-root tools get tests against temporary directories.
 Command handlers and prompt injection get tested against a fake `ExtensionAPI`.
 The five spike questions become integration checks against real pi.
 
+## v2 (ideas only, not planned for implementation now)
+
+Goal: keep the model workspace-aware without flooding the context window for a
+given task. Borrowed from how Copilot Chat budgets context (capped tool results,
+search delegated to a subagent), using pi's own mechanisms. Every item below
+has no generated or managed files.
+
+1. **Folder descriptions**: optional one-line `description` per folder in the
+   workspace JSON, written by the user, shown in the workspace block (a routing
+   table, about 20 tokens per folder). Descriptions are per workspace.
+2. **Capped search tools**: `grep`/`find`/`ls` get per-folder and total result
+   caps, counts first with a hint to narrow, and a `folder` scope parameter.
+   Cheap enough that it may move into v1 Task 6.
+3. **`/ws focus a,b`**: full detail (instructions, skills) only for focused
+   folders; the rest stay as one-line entries and contribute no skills.
+   `/ws focus all` resets. Focus is per session, applied on the next reload.
+4. **Search scout**: a `workspace_search` tool that spawns a read-only `pi`
+   subprocess per folder (as `examples/extensions/subagent` does, with `cwd` =
+   the folder and `--tools read,grep,find,ls`) and returns a short summary with
+   paths. The workspace block says when to prefer it over `grep`: fuzzy
+   questions, not exact strings. Costs a model run per call.
+5. **Lazy instructions**: load a folder's `AGENTS.md` on the first tool call that
+   touches that folder. Unverified: needs a pi hook for it; spike first.
+6. **Overviews are written by the repo owners**: a repo that wants an overview
+   ships a skill in `<folder>/.pi/skills/`, which v1 already loads. Keep
+   `AGENTS.md` short (it is always loaded) and put long material in skills.
+   Optional later: a bundled `/overview` prompt template that asks the agent to
+   draft that `SKILL.md` into the repo for the user to review and commit.
+
+### Considered and dropped: `/ws init`
+
+An LLM-generated overview skill per folder, stored under `~/.pi/` and loaded
+through `resources_discover`. Dropped because it is fragile and unproven:
+overviews keyed by folder path orphan when a folder moves, go stale without
+notice, cost one model run per folder, and make the extension write files the
+user did not write. Its value over `grep` is not shown (VS Code ships nothing
+like it). Revisit only if v1/v2 use shows that models cannot orient themselves
+in a workspace from descriptions, repo-owned skills and the scout.
+
+### Multiple workspaces
+
+Each workspace is its own file in `~/.pi/workspaces/`. A session is attached to
+one workspace at a time; `/ws use <name>` switches it and reloads. Different
+terminals can run different workspaces; saves are atomic and the last save wins.
+
+### Dynamic skill loading (checked)
+
+Per-workspace skills work through `resources_discover`, which pi runs on startup
+and on every reload; `ctx.reload()` from a command triggers it. The spike (Q5)
+confirmed a skill directory created mid-session was picked up after reload and
+shown in the next turn's skills section, and pi's `skills.md` says to run
+`/reload` after editing a skill. Limits: a new skill appears from the next turn,
+not mid-turn; a directory no longer returned is removed on the next reload; pi's
+own skills (cwd, global) always load and win name clashes; on a clash the first
+path wins. That `resources_discover` runs after `session_start` on startup is
+inferred from source, not observed; check it in the integration tests.
+
 ## Project location
 
 New package at `/Users/yashodhah/Projects/pi_flue/pi-workspace/`, separate from
