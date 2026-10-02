@@ -1,0 +1,20 @@
+{
+  "name": "pi-workspace",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Multi-folder workspaces for the pi coding agent",
+  "pi": { "extensions": ["./extensions/workspace.ts"] },
+  "scripts": { "test": "vitest --run" },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": ">=0.86.0",
+    "@earendil-works/pi-ai": "*"
+  },
+  "dependencies": { "typebox": "*" },
+  "devDependencies": {
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": ">=0.86.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0",
+    "@types/node": "^22.0.0"
+  }
+}
