@@ -144,4 +144,16 @@ describe("refreshStatus", () => {
 		expect(calls[0]).toEqual(["workspace", "ws: demo (2 folders, 1 missing)"]);
 		expect(calls[1]).toEqual(["workspace", undefined]);
 	});
+	it("uses the singular for one folder", async () => {
+		const calls: Array<[string, string | undefined]> = [];
+		const ui = { setStatus: (k: string, t: string | undefined) => void calls.push([k, t]) };
+		await refreshStatus({ name: "demo", folders: [proj] }, ui);
+		await refreshStatus({ name: "demo", folders: [join(proj, "gone")] }, ui);
+		await refreshStatus({ name: "demo", folders: [] }, ui);
+		expect(calls.map((c) => c[1])).toEqual([
+			"ws: demo (1 folder)",
+			"ws: demo (1 folder, 1 missing)",
+			"ws: demo (0 folders)",
+		]);
+	});
 });

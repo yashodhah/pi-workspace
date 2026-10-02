@@ -277,6 +277,76 @@ describe("workspace extension", () => {
 		});
 	});
 
+	it.each(["resume", "fork", "new"])("on %s the latest saved entry wins over --workspace", async (reason) => {
+		await withHome(async (home) => {
+			const a = await mkdtemp(join(tmpdir(), "ws-a-"));
+			const b = await mkdtemp(join(tmpdir(), "ws-b-"));
+			await saveWorkspace({ name: "fromflag", folders: [a] }, workspacesDir(home));
+			await saveWorkspace({ name: "other", folders: [b] }, workspacesDir(home));
+			const branch = [{ type: "custom", customType: "pi-workspace", data: { name: "other" } }];
+			const { pi, handlers } = fakePi("fromflag");
+			extension(pi);
+			const { ctx } = fakeCtx(a, branch);
+			await handlers.session_start({ type: "session_start", reason }, ctx);
+			const event: any = { systemPromptOptions: { sections: {}, contextFiles: [] } };
+			await handlers.before_agent_start(event, ctx);
+			expect(event.systemPromptOptions.sections.workspace).toContain("other");
+		});
+	});
+
+	it("on resume with no saved entry the flag is used", async () => {
+		await withHome(async (home) => {
+			const a = await mkdtemp(join(tmpdir(), "ws-a-"));
+			await saveWorkspace({ name: "fromflag", folders: [a] }, workspacesDir(home));
+			const { pi, handlers } = fakePi("fromflag");
+			extension(pi);
+			const { ctx } = fakeCtx(a);
+			await handlers.session_start({ type: "session_start", reason: "resume" }, ctx);
+			const event: any = { systemPromptOptions: { sections: {}, contextFiles: [] } };
+			await handlers.before_agent_start(event, ctx);
+			expect(event.systemPromptOptions.sections.workspace).toContain("fromflag");
+		});
+	});
+
+	it("does not append a duplicate entry when restoring the saved workspace", async () => {
+		await withHome(async (home) => {
+			const a = await mkdtemp(join(tmpdir(), "ws-a-"));
+			await saveWorkspace({ name: "kept", folders: [a] }, workspacesDir(home));
+			const branch = [{ type: "custom", customType: "pi-workspace", data: { name: "kept" } }];
+			const { pi, handlers, entries } = fakePi("kept");
+			extension(pi);
+			const { ctx } = fakeCtx(a, branch);
+			await handlers.session_start({ type: "session_start", reason: "startup" }, ctx);
+			expect(entries).toEqual([]);
+		});
+	});
+
+	it("appends an entry when the flag names a different workspace than the saved one", async () => {
+		await withHome(async (home) => {
+			const a = await mkdtemp(join(tmpdir(), "ws-a-"));
+			await saveWorkspace({ name: "kept", folders: [a] }, workspacesDir(home));
+			await saveWorkspace({ name: "fromflag", folders: [a] }, workspacesDir(home));
+			const branch = [{ type: "custom", customType: "pi-workspace", data: { name: "kept" } }];
+			const { pi, handlers, entries } = fakePi("fromflag");
+			extension(pi);
+			const { ctx } = fakeCtx(a, branch);
+			await handlers.session_start({ type: "session_start", reason: "startup" }, ctx);
+			expect(entries).toEqual([{ type: "custom", customType: "pi-workspace", data: { name: "fromflag" } }]);
+		});
+	});
+
+	it("appends an entry for a freshly attached flag workspace with no saved entry", async () => {
+		await withHome(async (home) => {
+			const a = await mkdtemp(join(tmpdir(), "ws-a-"));
+			await saveWorkspace({ name: "fresh", folders: [a] }, workspacesDir(home));
+			const { pi, handlers, entries } = fakePi("fresh");
+			extension(pi);
+			const { ctx } = fakeCtx(a);
+			await handlers.session_start({ type: "session_start", reason: "startup" }, ctx);
+			expect(entries).toEqual([{ type: "custom", customType: "pi-workspace", data: { name: "fresh" } }]);
+		});
+	});
+
 	it("/ws handlers never send messages", async () => {
 		await withHome(async () => {
 			const folder = await mkdtemp(join(tmpdir(), "ws-c-"));

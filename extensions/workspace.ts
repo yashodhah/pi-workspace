@@ -53,8 +53,10 @@ export default function (pi: ExtensionAPI) {
 		const rawFlag = pi.getFlag("workspace");
 		const flag = typeof rawFlag === "string" && rawFlag ? rawFlag : undefined;
 		const saved = restoreFromBranch(ctx.sessionManager.getBranch());
-		// On reload the latest /ws choice beats the startup flag; otherwise the flag wins.
-		const name = event.reason === "reload" ? (saved ?? flag) : (flag ?? saved);
+		// On a fresh startup (or unknown reason) the flag wins; on reload, resume, fork or new the
+		// session's latest /ws choice beats the startup flag.
+		const fresh = event.reason === undefined || event.reason === "startup";
+		const name = fresh ? (flag ?? saved) : (saved ?? flag);
 		current = undefined;
 		clashesReported = false;
 		// Never throw out of session_start, and never write over a file we could not read.
@@ -68,7 +70,7 @@ export default function (pi: ExtensionAPI) {
 				const loaded = await loadWorkspace(name);
 				if (loaded) {
 					current = loaded;
-					pi.appendEntry(ENTRY_TYPE, { name });
+					if (saved !== name) pi.appendEntry(ENTRY_TYPE, { name });
 				} else if (ctx.hasUI && (await ctx.ui.confirm("Workspace not found", `Create workspace "${name}"?`))) {
 					const created: Workspace = { name, folders: [] };
 					await saveWorkspace(created);

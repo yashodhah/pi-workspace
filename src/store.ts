@@ -48,7 +48,7 @@ export async function loadWorkspace(name: string, dir: string = workspacesDir())
 		throw new Error(`Invalid workspace file: ${file}`);
 	}
 	if (!isWorkspace(parsed, name)) throw new Error(`Invalid workspace file: ${file}`);
-	return parsed;
+	return { name: parsed.name, folders: dedupe(parsed.folders.map((f) => normalizeFolder(f))) };
 }
 
 export async function saveWorkspace(ws: Workspace, dir: string = workspacesDir()): Promise<void> {

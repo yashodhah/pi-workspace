@@ -1,5 +1,5 @@
 import { mkdtemp, readFile, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
 import { addFolder, listWorkspaces, loadWorkspace, removeFolder, saveWorkspace, validateName } from "../src/store.ts";
@@ -24,6 +24,14 @@ describe("save/load/list", () => {
 		expect(await loadWorkspace("p", dir)).toEqual({ name: "p", folders: ["/a", "/b"] });
 		const raw = JSON.parse(await readFile(join(dir, "p.json"), "utf-8"));
 		expect(raw).toEqual({ name: "p", folders: ["/a", "/b"] });
+	});
+	it("normalizes and de-duplicates folders of a hand-written file on load", async () => {
+		await writeFile(join(dir, "hand.json"), JSON.stringify({ name: "hand", folders: ["/a/b/", "/a/b", "/c/../d"] }));
+		expect(await loadWorkspace("hand", dir)).toEqual({ name: "hand", folders: ["/a/b", "/d"] });
+	});
+	it("expands ~ in folders of a hand-written file on load", async () => {
+		await writeFile(join(dir, "tilde.json"), JSON.stringify({ name: "tilde", folders: ["~/proj"] }));
+		expect((await loadWorkspace("tilde", dir))?.folders).toEqual([join(homedir(), "proj")]);
 	});
 	it("returns undefined for a missing workspace", async () => {
 		expect(await loadWorkspace("nope", dir)).toBeUndefined();

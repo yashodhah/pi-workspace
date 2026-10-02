@@ -34,7 +34,7 @@ export async function refreshStatus(ws: Workspace | undefined, ui: Pick<WsUi, "s
 	if (!ws) return ui.setStatus("workspace", undefined);
 	const missing = await findMissing(ws.folders);
 	const extra = missing.size ? `, ${missing.size} missing` : "";
-	ui.setStatus("workspace", `ws: ${ws.name} (${ws.folders.length} folders${extra})`);
+	ui.setStatus("workspace", `ws: ${ws.name} (${ws.folders.length} ${ws.folders.length === 1 ? "folder" : "folders"}${extra})`);
 }
 
 async function isDirectory(p: string): Promise<boolean> {
