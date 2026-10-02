@@ -1,7 +1,7 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import extension from "../extensions/workspace.ts";
 import { saveWorkspace, workspacesDir } from "../src/store.ts";
 
@@ -116,8 +116,90 @@ describe("workspace extension", () => {
 			extension(pi);
 			const { ctx, notes } = fakeCtx("/x");
 			ctx.hasUI = false;
-			await handlers.session_start({ type: "session_start" }, ctx);
+			const err = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+			try {
+				await handlers.session_start({ type: "session_start" }, ctx);
+				expect(err.mock.calls.map((c) => String(c[0])).join("")).toMatch(/ghost.*not found/);
+			} finally {
+				err.mockRestore();
+			}
 			expect(notes.join("\n")).toMatch(/ghost.*not found/);
+			const event: any = { systemPromptOptions: { sections: {}, contextFiles: [] } };
+			await handlers.before_agent_start(event, ctx);
+			expect(event.systemPromptOptions.sections.workspace).toBeUndefined();
+		});
+	});
+
+	it("does not overwrite a corrupt workspace file or offer to create it", async () => {
+		await withHome(async (home) => {
+			const dir = workspacesDir(home);
+			await mkdir(dir, { recursive: true });
+			const file = join(dir, "demo.json");
+			await writeFile(file, "{ not json");
+			const { pi, handlers, entries } = fakePi("demo");
+			extension(pi);
+			const { ctx, notes } = fakeCtx("/x");
+			let confirmed = 0;
+			ctx.ui.confirm = async () => (confirmed++, true);
+			await handlers.session_start({ type: "session_start" }, ctx);
+			expect(await readFile(file, "utf-8")).toBe("{ not json");
+			expect(confirmed).toBe(0);
+			expect(notes.join("\n")).toMatch(/Invalid workspace file/);
+			expect(entries).toEqual([]);
+			const event: any = { systemPromptOptions: { sections: {}, contextFiles: [] } };
+			await handlers.before_agent_start(event, ctx);
+			expect(event.systemPromptOptions.sections.workspace).toBeUndefined();
+		});
+	});
+
+	it("reports a corrupt workspace file on stderr when there is no UI", async () => {
+		await withHome(async (home) => {
+			const dir = workspacesDir(home);
+			await mkdir(dir, { recursive: true });
+			await writeFile(join(dir, "demo.json"), "{ not json");
+			const { pi, handlers } = fakePi("demo");
+			extension(pi);
+			const { ctx } = fakeCtx("/x");
+			ctx.hasUI = false;
+			const err = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+			try {
+				await handlers.session_start({ type: "session_start" }, ctx);
+				expect(err.mock.calls.map((c) => String(c[0])).join("")).toMatch(/Invalid workspace file/);
+			} finally {
+				err.mockRestore();
+			}
+		});
+	});
+
+	it("does not throw or offer to create when --workspace is an invalid name", async () => {
+		await withHome(async () => {
+			const { pi, handlers, entries } = fakePi("-x");
+			extension(pi);
+			const { ctx, notes } = fakeCtx("/x");
+			let confirmed = 0;
+			ctx.ui.confirm = async () => (confirmed++, true);
+			await handlers.session_start({ type: "session_start" }, ctx);
+			expect(confirmed).toBe(0);
+			expect(notes.length).toBeGreaterThan(0);
+			expect(entries).toEqual([]);
+			const event: any = { systemPromptOptions: { sections: {}, contextFiles: [] } };
+			await handlers.before_agent_start(event, ctx);
+			expect(event.systemPromptOptions.sections.workspace).toBeUndefined();
+		});
+	});
+
+	it("does not throw and attaches nothing when creating the workspace fails", async () => {
+		await withHome(async (home) => {
+			// a file where the workspaces dir should be makes saveWorkspace fail
+			await mkdir(join(home, ".pi"), { recursive: true });
+			await writeFile(join(home, ".pi", "workspaces"), "blocker");
+			const { pi, handlers, entries } = fakePi("fresh");
+			extension(pi);
+			const { ctx, notes } = fakeCtx("/x");
+			ctx.ui.confirm = async () => true;
+			await handlers.session_start({ type: "session_start" }, ctx);
+			expect(notes.length).toBeGreaterThan(0);
+			expect(entries).toEqual([]);
 			const event: any = { systemPromptOptions: { sections: {}, contextFiles: [] } };
 			await handlers.before_agent_start(event, ctx);
 			expect(event.systemPromptOptions.sections.workspace).toBeUndefined();

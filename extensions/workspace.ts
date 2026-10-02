@@ -57,23 +57,30 @@ export default function (pi: ExtensionAPI) {
 		const name = event.reason === "reload" ? (saved ?? flag) : (flag ?? saved);
 		current = undefined;
 		clashesReported = false;
+		// Never throw out of session_start, and never write over a file we could not read.
+		const report = (msg: string, level: "info" | "warning" | "error") => {
+			ctx.ui.notify(msg, level);
+			// pi's no-UI context makes notify a no-op (print mode), so also reach the user via stderr.
+			if (!ctx.hasUI && level !== "info") process.stderr.write(`pi-workspace: ${msg}\n`);
+		};
 		if (name) {
 			try {
-				current = await loadWorkspace(name);
-			} catch (e) {
-				ctx.ui.notify((e as Error).message, "error");
-			}
-			if (!current) {
-				if (ctx.hasUI && (await ctx.ui.confirm("Workspace not found", `Create workspace "${name}"?`))) {
-					current = { name, folders: [] };
-					await saveWorkspace(current);
+				const loaded = await loadWorkspace(name);
+				if (loaded) {
+					current = loaded;
 					pi.appendEntry(ENTRY_TYPE, { name });
-					ctx.ui.notify(`Created workspace "${name}". Use /ws add to add folders.`, "info");
+				} else if (ctx.hasUI && (await ctx.ui.confirm("Workspace not found", `Create workspace "${name}"?`))) {
+					const created: Workspace = { name, folders: [] };
+					await saveWorkspace(created);
+					current = created;
+					pi.appendEntry(ENTRY_TYPE, { name });
+					report(`Created workspace "${name}". Use /ws add to add folders.`, "info");
 				} else {
-					ctx.ui.notify(`Workspace "${name}" not found; continuing without a workspace`, "warning");
+					report(`Workspace "${name}" not found; continuing without a workspace`, "warning");
 				}
-			} else {
-				pi.appendEntry(ENTRY_TYPE, { name });
+			} catch (e) {
+				current = undefined;
+				report(`${(e as Error).message}; continuing without a workspace`, "error");
 			}
 		}
 		await refreshStatus(current, ctx.ui);
