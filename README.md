@@ -1,6 +1,6 @@
 # pi-workspace
 
-A [pi](https://github.com/earendil-works/pi) extension that attaches several folders to one session as a named workspace. The model is told which folders belong to the workspace, and each folder's instruction file (`AGENTS.md` etc.) and skills are loaded alongside the session's own. `grep`, `find` and `ls` search every workspace folder when given a relative path, and `read` already accepts absolute paths. Workspaces are saved per user and are restored when you resume a session.
+A [pi](https://github.com/earendil-works/pi) extension that attaches several folders to one session as a named workspace. The model is told which folders belong to the workspace, and each folder's instruction file (`AGENTS.md` etc.) and skills are loaded alongside the session's own. `grep`, `find` and `ls` search every workspace folder when given a relative path (an absolute path, `~` or `@`-prefixed path runs once), and `read` already accepts absolute paths. Workspaces are saved per user and are restored when you resume a session.
 
 **Requires pi >= 0.86.0** (the extension injects a prompt section through `systemPromptOptions.sections`, which older pi does not have). On pi < 0.86 only that prompt injection fails (the spike saw pi report an "Extension error" and carry on); the flag, `/ws`, the status line and the tools do not depend on `sections`.
 
@@ -17,7 +17,7 @@ pi -e /path/to/pi-workspace/extensions/workspace.ts   # or load for one run
 pi --workspace <name>
 ```
 
-If `<name>` does not exist, pi asks whether to create it (in a non-interactive mode it warns and continues without a workspace). Without `--workspace`, a workspace used earlier in the session is restored from the session file, so `pi --continue` picks it up again.
+If `<name>` does not exist, pi asks whether to create it (in a non-interactive mode it warns and continues without a workspace). Without `--workspace`, a workspace used earlier in the session is restored from the session file, so `pi --continue` picks it up again. On a fresh start `--workspace` wins over a saved choice; on `/reload`, resume, fork and new-session the session's latest saved choice wins over the flag.
 
 Inside a session, `/ws` manages the workspace:
 
@@ -35,13 +35,13 @@ Notes:
 
 - The folder prompt is a plain path prompt. pi has no native folder picker. `~`, relative paths, `..` and trailing slashes are normalized to one absolute path, and duplicates are ignored.
 - Workspace files are stored as `~/.pi/workspaces/<name>.json`: `{ "name": string, "folders": string[] }`. Names must match `[A-Za-z0-9][A-Za-z0-9_-]{0,63}`; anything else (including `/`, `..` and spaces) is rejected.
-- The status line shows `ws: <name> (<n> folders)`, plus `, <k> missing` when folders have been deleted. A folder that has been deleted never crashes the session: the prompt marks it `(missing, skipped)`, and its instruction files and skills are left out. The fanned-out `grep`/`find`/`ls` still iterate it, so its `## <folder>` section contains an `error: ...` line while the other folders still return their results.
-- Skills found in `.pi/skills`, `.claude/skills` and `.github/skills` of each folder are discovered when pi loads resources. A folder added with `/ws add` mid-session needs `/reload` before its skills appear. Skill name clashes are reported as warnings.
+- The status line shows `ws: <name> (<n> folders)` (`1 folder` for one), plus `, <k> missing` when folders have been deleted. A folder that has been deleted never crashes the session: the prompt marks it `(missing, skipped)`, and its instruction files and skills are left out. The fanned-out `grep`/`find`/`ls` also skip it (checked on every call), so the other folders still return their results; if every folder is missing, the tool runs once against the session cwd.
+- Skills found in `.pi/skills`, `.claude/skills` and `.github/skills` of each folder are discovered when pi loads resources. A folder added with `/ws add`, or a different workspace attached with `/ws use`, needs `/reload` before its skills appear (or disappear). Skill name clashes are reported as warnings.
 - Instruction files per folder: the first of `AGENTS.override.md`, `AGENTS.md`, `AGENTS.MD`, `CLAUDE.md`, `CLAUDE.MD`, truncated with a note above 20000 characters. A file already loaded by pi (for example through its cwd walk) appears once.
 
 ## How the session cwd is treated
 
-The cwd you start pi in stays the default for relative paths and for `bash`. If it is one of the workspace folders it is marked `(session cwd)` in the prompt; if it is inside a workspace folder or outside the workspace, the prompt says so. Only the workspace folders are searched by the fanned-out `grep`, `find` and `ls`: an absolute `path` argument runs the tool once with the session cwd as the base (whether or not the path is inside a workspace folder), and a relative or omitted path runs once per workspace folder with results headed `## <folder>`.
+The cwd you start pi in stays the default for relative paths and for `bash`. If it is one of the workspace folders it is marked `(session cwd)` in the prompt; if it is inside a workspace folder or outside the workspace, the prompt says so. Only the workspace folders are searched by the fanned-out `grep`, `find` and `ls`: an absolute `path` argument, or one pi resolves to an absolute path (`~`, `~/...`, and either form with a leading `@`), runs the tool once with the session cwd as the base (whether or not the path is inside a workspace folder), and a relative or omitted path runs once per workspace folder with results headed `## <folder>`.
 
 ## Out of scope for v1
 

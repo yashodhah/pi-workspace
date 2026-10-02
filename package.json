@@ -9,8 +9,8 @@
     "@earendil-works/pi-coding-agent": ">=0.86.0",
     "@earendil-works/pi-ai": "*"
   },
-  "dependencies": { "typebox": "*" },
   "devDependencies": {
+    "typebox": "*",
     "@earendil-works/pi-ai": "*",
     "@earendil-works/pi-coding-agent": ">=0.86.0",
     "typescript": "^5.6.0",
