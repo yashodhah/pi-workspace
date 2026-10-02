@@ -1,4 +1,6 @@
 import { stat } from "node:fs/promises";
+import { dirname } from "node:path";
+import { browseForFolder } from "./browse.ts";
 import { normalizeFolder } from "./paths.ts";
 import { findMissing } from "./prompt.ts";
 import {
@@ -20,6 +22,7 @@ export interface WsUi {
 
 export interface WsDeps {
 	ui: WsUi;
+	cwd: string;
 	dir?: string;
 	home?: string;
 	getCurrent(): Workspace | undefined;
@@ -83,7 +86,7 @@ export async function runWsCommand(args: string, d: WsDeps): Promise<void> {
 			case "add": {
 				const ws = d.getCurrent();
 				if (!ws) return d.ui.notify(NO_WORKSPACE, "warning");
-				const raw = arg || (await d.ui.input("Folder to add", "/path/to/folder"));
+				const raw = arg || (await browseForFolder(d.ui, dirname(d.cwd), ws.folders, d.home));
 				if (!raw) return;
 				const folder = normalizeFolder(raw, d.home);
 				if (!(await isDirectory(folder))) return d.ui.notify(`${folder} is not an existing directory`, "error");

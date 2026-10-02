@@ -24,7 +24,7 @@ Inside a session, `/ws` manages the workspace:
 | Command | Effect |
 | --- | --- |
 | `/ws new <name>` | Create an empty workspace and attach it |
-| `/ws add [path]` | Add a folder (prompts for a path when omitted) |
+| `/ws add [path]` | Add a folder (opens a folder browser when the path is omitted) |
 | `/ws remove [path]` | Remove a folder (prompts with a list when omitted) |
 | `/ws use <name>` | Attach an existing workspace |
 | `/ws list` | List saved workspaces |
@@ -33,7 +33,7 @@ Inside a session, `/ws` manages the workspace:
 
 Notes:
 
-- The folder prompt is a plain path prompt. pi has no native folder picker. `~`, relative paths, `..` and trailing slashes are normalized to one absolute path, and duplicates are ignored.
+- `/ws add` with no path opens a terminal folder browser (arrow keys and Enter) that starts in the parent of the session cwd. The options are: add this folder, up one level, home, type a path, cancel, then the subfolders. Hidden folders and `node_modules` are not listed. One folder is added per invocation. `/ws add <path>` still adds directly. `~`, relative paths, `..` and trailing slashes are normalized to one absolute path, and duplicates are ignored.
 - Workspace files are stored as `~/.pi/workspaces/<name>.json`: `{ "name": string, "folders": string[] }`. Names must match `[A-Za-z0-9][A-Za-z0-9_-]{0,63}`; anything else (including `/`, `..` and spaces) is rejected.
 - The status line shows `ws: <name> (<n> folders)` (`1 folder` for one), plus `, <k> missing` when folders have been deleted. A folder that has been deleted never crashes the session: the prompt marks it `(missing, skipped)`, and its instruction files and skills are left out. The fanned-out `grep`/`find`/`ls` also skip it (checked on every call), so the other folders still return their results; if every folder is missing, the tool runs once against the session cwd.
 - Skills found in `.pi/skills`, `.claude/skills` and `.github/skills` of each folder are discovered when pi loads resources. A folder added with `/ws add`, or a different workspace attached with `/ws use`, needs `/reload` before its skills appear (or disappear). Skill name clashes are reported as warnings.
@@ -77,4 +77,5 @@ Not verified live:
 
 - The "create workspace" dialog in RPC mode. pi 1.0.0 awaits `session_start` before it starts reading stdin, so a dialog raised there is never answered and the process exits with code 0. This is a property of RPC startup, not of the extension; use `/ws new <name>` first in RPC, or a TUI. The non-UI "not found" path is covered by unit tests only.
 - Rendering of the overridden `find`/`ls` in the TUI was not inspected. For `grep`, the restored transcript in the TUI showed the `## /tmp/ws-b` / `notes.txt:1: needle-in-b` result text, but the tool-call header styling was not examined; the tool results themselves were read from RPC events and the session file.
+- `/ws add` folder browser in the real TUI (covered by unit tests only).
 - `--continue` was checked with `~` as the cwd (outside the workspace); a cwd that is a workspace member was not run live and is covered by unit tests.

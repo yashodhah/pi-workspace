@@ -42,6 +42,7 @@ export default function (pi: ExtensionAPI) {
 			clashesReported = false;
 			await runWsCommand(args, {
 				ui: ctx.ui,
+				cwd: ctx.cwd,
 				getCurrent: () => current,
 				setCurrent: (ws) => void (current = ws),
 				persist: (name) => pi.appendEntry(ENTRY_TYPE, { name: name ?? null }),

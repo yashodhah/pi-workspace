@@ -2,6 +2,7 @@ import { mkdir, mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
+import { ADD, CANCEL, TYPE } from "../src/browse.ts";
 import { refreshStatus, runWsCommand, type WsDeps } from "../src/commands.ts";
 import { listWorkspaces, loadWorkspace, type Workspace } from "../src/store.ts";
 
@@ -16,6 +17,7 @@ let selects: Array<string | undefined>;
 function deps(): WsDeps {
 	return {
 		dir,
+		cwd: join(proj, "child"),
 		ui: {
 			notify: (m) => void notes.push(m),
 			input: async () => inputs.shift(),
@@ -80,11 +82,35 @@ describe("runWsCommand", () => {
 		await runWsCommand("add ~/code/../code/", d);
 		expect((await loadWorkspace("demo", dir))?.folders).toEqual([join(home, "code")]);
 	});
-	it("add without a path asks via input", async () => {
+	it("add without a path opens the browser at the parent of the cwd and adds the chosen folder", async () => {
 		await runWsCommand("new demo", deps());
+		selects.push(ADD);
+		await runWsCommand("add", deps());
+		expect(current?.folders).toEqual([proj]);
+		expect((await loadWorkspace("demo", dir))?.folders).toEqual([proj]);
+		expect(notes.join("\n")).toContain(`Added ${proj}`);
+	});
+	it("add without a path can fall back to typing a path", async () => {
+		await runWsCommand("new demo", deps());
+		selects.push(TYPE);
 		inputs.push(proj);
 		await runWsCommand("add", deps());
 		expect(current?.folders).toEqual([proj]);
+	});
+	it("add without a path adds nothing when the browser is cancelled", async () => {
+		await runWsCommand("new demo", deps());
+		notes.length = 0;
+		selects.push(CANCEL);
+		await runWsCommand("add", deps());
+		expect(current?.folders).toEqual([]);
+		expect(notes).toEqual([]);
+	});
+	it("add with a path does not open the browser", async () => {
+		await runWsCommand("new demo", deps());
+		selects.push(ADD);
+		await runWsCommand(`add ${proj}`, deps());
+		expect(current?.folders).toEqual([proj]);
+		expect(selects).toEqual([ADD]);
 	});
 	it("add rejects a path that is not an existing directory", async () => {
 		await runWsCommand("new demo", deps());

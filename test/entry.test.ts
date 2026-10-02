@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import extension from "../extensions/workspace.ts";
-import { saveWorkspace, workspacesDir } from "../src/store.ts";
+import { loadWorkspace, saveWorkspace, workspacesDir } from "../src/store.ts";
 
 function fakePi(flag?: string) {
 	const handlers: Record<string, Function> = {};
@@ -344,6 +344,27 @@ describe("workspace extension", () => {
 			const { ctx } = fakeCtx(a);
 			await handlers.session_start({ type: "session_start", reason: "startup" }, ctx);
 			expect(entries).toEqual([{ type: "custom", customType: "pi-workspace", data: { name: "fresh" } }]);
+		});
+	});
+
+	it("/ws add with no path browses from the parent of ctx.cwd", async () => {
+		await withHome(async (home) => {
+			const parent = await mkdtemp(join(tmpdir(), "ws-par-"));
+			const cwd = join(parent, "me");
+			await mkdir(cwd);
+			await saveWorkspace({ name: "demo", folders: [] }, workspacesDir(home));
+			const { pi, handlers, commands } = fakePi("demo");
+			extension(pi);
+			const { ctx } = fakeCtx(cwd);
+			const titles: string[] = [];
+			ctx.ui.select = async (title: string) => {
+				titles.push(title);
+				return "✓ Add this folder";
+			};
+			await handlers.session_start({ type: "session_start" }, ctx);
+			await commands.ws.handler("add", ctx);
+			expect(titles[0]).toContain(parent);
+			expect((await loadWorkspace("demo", workspacesDir(home)))?.folders).toEqual([parent]);
 		});
 	});
 
